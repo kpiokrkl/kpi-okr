@@ -530,6 +530,7 @@ td.nowrap{white-space:nowrap}
 <script>
 // ================= DỮ LIỆU (nạp từ Google Sheet sau khi đăng nhập) =================
 let DEFAULT_PW=''; // mật khẩu gốc: máy chủ chỉ gửi cho Quản trị viên, không ghi trong mã
+let DATA_URL=''; // link Google Sheet dữ liệu: máy chủ chỉ gửi cho Quản trị viên
 let SKEW=0; // giờ máy chủ trừ giờ máy này (mili giây), cập nhật mỗi lần nạp dữ liệu
 const pad=n=>String(n).padStart(2,'0');
 // Giờ hiện tại theo máy chủ, múi giờ Việt Nam (UTC+7): không phụ thuộc đồng hồ hay múi giờ của máy người dùng
@@ -581,7 +582,7 @@ function flushSync(){if(!API.token)return Promise.resolve();
 function sessionLost(e){if(!String(e&&e.message||e).includes('SESSION'))return false;
   clearSession();S.user=null;S.loginErr='Phiên đăng nhập đã hết hạn. Đăng nhập lại.';render();return true;}
 function applyData(d){
-  if(d.now)SKEW=d.now-Date.now();DEFAULT_PW=d.defaultPw||'';
+  if(d.now)SKEW=d.now-Date.now();DEFAULT_PW=d.defaultPw||'';DATA_URL=/^https:\/\/docs\.google\.com\//.test(d.dataUrl||'')?d.dataUrl:'';
   for(const k of Object.keys(settings))delete settings[k];Object.assign(settings,{base:40,lockDay:5,okrMin:1.5,okrMax:5,tos:[],cvs:[],phuTrach:{}},d.settings||{});
   ['base','lockDay','okrMin','okrMax'].forEach(k=>settings[k]=Number(settings[k]));
   if(!Array.isArray(settings.tos))settings.tos=[];if(!Array.isArray(settings.cvs))settings.cvs=[];if(!settings.phuTrach||typeof settings.phuTrach!=='object')settings.phuTrach={};
@@ -796,7 +797,7 @@ function shell(){
   return `<div class="app ${S.menu?'open':''}">
     <aside class="side" aria-label="Menu chính">
       <div class="logo"><div class="mark">KO</div><div><b>KPI · OKR</b><span>Theo Hướng dẫn số 20</span></div></div>
-      <nav aria-label="Chức năng">${groups}</nav>
+      <nav aria-label="Chức năng">${groups}${u.isAdmin&&DATA_URL?`<div class="ng"><a class="ni" href="${esc(DATA_URL)}" target="_blank" rel="noopener" style="text-decoration:none" title="Mở file Google Sheet chứa toàn bộ dữ liệu (tab mới)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M4 9h16M4 15h16M10 9v12"/></svg><span>Trang dữ liệu ↗</span></a></div>`:''}</nav>
       <div class="sfoot"><div class="me"><div class="av">${esc(ini)}</div><div><div class="nm">${esc(u.name)}</div><div class="rl">${esc(roleOf(u))} · ${esc(u.to)}</div></div></div>
         <div class="sbtns"><button class="sbtn" data-act="pw-open">Đổi mật khẩu</button><button class="sbtn" data-act="logout">Đăng xuất</button></div></div>
     </aside>
