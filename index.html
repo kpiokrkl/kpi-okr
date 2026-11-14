@@ -635,7 +635,7 @@ function autoMiss(){periods.forEach(p=>{if(p.state!=='open'||p.autoMissed||!mont
   items.filter(i=>i.period===p.id&&i.status==='chua').forEach(i=>{i.status='khongdat';i.auto=true;i.reason='Hết tháng chưa báo hoàn thành (hệ thống tự chuyển).';i.approvedAt=`${p.id}-${pad(new Date(+p.id.slice(0,4),+p.id.slice(5),0).getDate())} 23:59`;i.approvedBy='Hệ thống';});});}
 const me=()=>uObj(S.user);
 const lockDate=pid=>`${pid}-${pad(settings.lockDay)}`;
-const regLocked=pid=>nowISO().slice(0,10)>lockDate(pid);
+const regLocked=pid=>!!settings.lockDay&&nowISO().slice(0,10)>lockDate(pid); // lockDay = 0: không chốt đăng ký
 const SRC={giao:'Được giao',dk:'Tự đăng ký',ps:'Phát sinh'};
 const RT={HTXS:'Hoàn thành xuất sắc',HTT:'Hoàn thành tốt',HTNV:'Hoàn thành nhiệm vụ',KHT:'Không hoàn thành nhiệm vụ'};
 const LV={dat:'Đạt chỉ tiêu',vuot:'Vượt chỉ tiêu'};
@@ -717,7 +717,8 @@ function dlModal(){const d=dlNeed();if(!d||S.dlSeen[d.p])return '';
   return `<div class="ov" data-act="dl-close-ov"><div class="modal panel pad stack" role="dialog" aria-modal="true" aria-labelledby="dl-h" style="max-width:440px">
     <div class="mhead"><h3 class="h3" id="dl-h">Nhắc đăng ký ${pLabel(d.p)}</h3><button class="btn ghost sm" type="button" data-act="dl-close" aria-label="Đóng">✕</button></div>
     <ul class="checklist" style="grid-template-columns:1fr">
-      ${d.noKpi?`<li class="no" style="align-items:flex-start"><span class="ic">!</span><div>Chưa đăng ký KPI. Hạn chốt <b>${fmt(ld)}</b>${days>0?`, còn <b>${days} ngày</b>`:days===0?', <b>hôm nay</b>':''}. Sau hạn này không thêm được KPI tự đăng ký.</div></li>`:''}
+      ${d.noKpi&&!settings.lockDay?`<li class="no" style="align-items:flex-start"><span class="ic">!</span><div>Chưa đăng ký KPI tháng này.</div></li>`:''}
+      ${d.noKpi&&settings.lockDay?`<li class="no" style="align-items:flex-start"><span class="ic">!</span><div>Chưa đăng ký KPI. Hạn chốt <b>${fmt(ld)}</b>${days>0?`, còn <b>${days} ngày</b>`:days===0?', <b>hôm nay</b>':''}. Sau hạn này không thêm được KPI tự đăng ký.</div></li>`:''}
       ${d.noOkr?`<li class="no" style="align-items:flex-start"><span class="ic">!</span><div>Chưa có OKR. Cần ít nhất 1 OKR hoàn thành để được xét Hoàn thành xuất sắc.</div></li>`:''}
     </ul>
     <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn ghost" data-act="dl-close">Để sau</button>${d.noOkr?`<button class="btn" data-act="dl-go" data-v="okr">Đăng ký OKR</button>`:''}${d.noKpi?`<button class="btn pri" data-act="dl-go" data-v="kpi">Đăng ký KPI</button>`:''}</div>
@@ -753,7 +754,7 @@ function loginView(){
     <label class="remember"><input type="checkbox" id="lg-rem" ${S.remember?'checked':''}> Ghi nhớ đăng nhập trên máy này (30 ngày)</label>
     <div class="err">${esc(S.loginErr)}</div>
     <button class="btn pri" type="submit" ${S.loginBusy?'disabled':''}>${S.loginBusy?'Đang đăng nhập…':'Đăng nhập'}</button>
-    <p class="sub">Tên đăng nhập: giống tên đăng nhập của phần mềm ĐTHS (tên + chữ đầu họ đệm + số hiệu, ví dụ <b>vietvh802859</b>).<br>Mật khẩu mặc định: <b>12345678a@</b><br>Quên mật khẩu: báo Quản trị viên đặt lại về mật khẩu gốc.</p>
+    <p class="sub">Tên đăng nhập: giống tên đăng nhập của phần mềm ĐTHS (tên + chữ đầu họ đệm + số hiệu, ví dụ <b>vietvh802859</b>).<br>Mật khẩu mặc định: <b>12345678a@</b></p>
   </form></div>`;
 }
 const ICON={
@@ -1215,10 +1216,10 @@ function tdView(){
   const q=norm(S.tdQ);if(q)rows=rows.filter(r=>norm(r.x.name+' '+r.x.id+' '+r.x.to).includes(q));
   const order={nokpi:0,nookr:1,ok:2};rows=rows.slice().sort((a,b)=>order[a.st]-order[b.st]||a.x.name.localeCompare(b.x.name));
   const nSel=rows.filter(r=>S.tdSel.has(r.x.id)).length,tos=[...new Set(all.map(r=>r.x.to))];
-  const msg=S.tdMsg||`Đề nghị đồng chí đăng ký KPI ${pLabel(p)} trước hạn chốt ${fmt(ld)}. OKR thêm được đến hết tháng.`;
+  const msg=S.tdMsg||(settings.lockDay?`Đề nghị đồng chí đăng ký KPI ${pLabel(p)} trước hạn chốt ${fmt(ld)}. OKR thêm được đến hết tháng.`:`Đề nghị đồng chí đăng ký KPI, OKR ${pLabel(p)}.`);
   const tile=(lbl,v,sub,f,cls='')=>`<button class="tile ${cls} ${S.tdF===f?'sel':''}" data-act="tdf" data-f="${f}"><span class="lbl">${lbl}</span><span class="v">${v}</span><span class="s">${sub}</span></button>`;
   return `<div class="head"><h2>Theo dõi nhập liệu · ${pLabel(p)}</h2><p>${me().isAdmin?'Toàn đơn vị':'Những người bạn được phân công duyệt'}. Theo dõi ai đã đăng ký KPI, OKR và nhắc người chưa nhập.</p></div>
-    ${open?`<div class="notice ${days>=0?'info':''}">${days>0?`Hạn chốt đăng ký KPI: <b>${fmt(ld)}</b>, còn <b>${days} ngày</b>. Sau hạn này cán bộ không thêm được KPI tự đăng ký.`:days===0?`Hôm nay (<b>${fmt(ld)}</b>) là hạn chốt đăng ký KPI.`:`Đã qua hạn chốt đăng ký (${fmt(ld)}). Người chưa đăng ký chỉ còn KPI được giao.`}</div>`:`<div class="notice">${pLabel(p)} đã chốt.</div>`}
+    ${open&&!settings.lockDay?`<div class="notice info">Không đặt hạn chốt đăng ký: cán bộ thêm, sửa, xóa KPI tự đăng ký được đến khi chốt tháng.</div>`:open?`<div class="notice ${days>=0?'info':''}">${days>0?`Hạn chốt đăng ký KPI: <b>${fmt(ld)}</b>, còn <b>${days} ngày</b>. Sau hạn này cán bộ không thêm được KPI tự đăng ký.`:days===0?`Hôm nay (<b>${fmt(ld)}</b>) là hạn chốt đăng ký KPI.`:`Đã qua hạn chốt đăng ký (${fmt(ld)}). Người chưa đăng ký chỉ còn KPI được giao.`}</div>`:`<div class="notice">${pLabel(p)} đã chốt.</div>`}
     <section class="tiles" aria-label="Thống kê nhập liệu">
       ${tile('Đã đăng ký KPI',`${N-nok}/${N}`,`${N?Math.round((N-nok)/N*100):0}% cán bộ`,'all')}
       ${tile('Chưa đăng ký KPI',nok,nok?'Bấm để lọc và nhắc':'Đã đủ','nokpi',nok?'alert':'')}
@@ -1358,7 +1359,7 @@ function ctView(){
         ${locked?`<button class="btn" data-act="ct-unsubmit">Rút lại để sửa</button>`:`<button class="btn" data-act="ct-copyprev">Lấy lại phần III tháng trước</button>${c.n?'<button class="btn pri" data-act="ct-submit">Nộp chương trình</button>':'<span class="tipw" tabindex="0" data-tip="Chỉ nộp được chương trình khi đã có ít nhất 1 KPI (được giao hoặc tự đăng ký)."><button class="btn pri" disabled>Nộp chương trình</button></span>'}`}
         <button class="btn" data-act="preview" data-k="plan" data-u="${u.id}" data-p="${p}">Xem trước bản in</button>
         <button class="btn ${locked?'pri':''}" data-act="exportplan" data-u="${u.id}" data-p="${p}">Xuất Word</button></div>
-      <ul class="checklist">${ck(c.n>0,c.n?`Đã có ${c.n} KPI (${c.giao} được giao, ${c.dk} tự đăng ký)`:'Chưa có KPI nào')}${ck(okr.length>0,okr.length?`Đã có ${okr.length} OKR`:'Chưa có OKR (cần để xét Xuất sắc)')}${ck(!noSp,noSp?`${noSp} việc chưa ghi sản phẩm đầu ra`:'Đã ghi sản phẩm cho mọi việc')}${ck(!regLocked(p),regLocked(p)?`Đã qua hạn chốt đăng ký KPI ${fmt(lockDate(p))}`:`Hạn chốt đăng ký KPI ${fmt(lockDate(p))}`)}</ul>
+      <ul class="checklist">${ck(c.n>0,c.n?`Đã có ${c.n} KPI (${c.giao} được giao, ${c.dk} tự đăng ký)`:'Chưa có KPI nào')}${ck(okr.length>0,okr.length?`Đã có ${okr.length} OKR`:'Chưa có OKR (cần để xét Xuất sắc)')}${ck(!noSp,noSp?`${noSp} việc chưa ghi sản phẩm đầu ra`:'Đã ghi sản phẩm cho mọi việc')}${settings.lockDay?ck(!regLocked(p),regLocked(p)?`Đã qua hạn chốt đăng ký KPI ${fmt(lockDate(p))}`:`Hạn chốt đăng ký KPI ${fmt(lockDate(p))}`):''}</ul>
       ${pt?`<p class="formula" style="margin:0">Lãnh đạo, chỉ huy phụ trách (${esc(u.to)}): <b>${esc(pt)}</b> · QTV cài ở mục Cài đặt.</p>`:`<p class="formula" style="margin:0">${esc(u.to)} chưa được cài lãnh đạo phụ trách. Báo QTV cài ở mục Cài đặt.</p>`}
       ${wordLegend()}
     </section>
@@ -1505,7 +1506,7 @@ function kyView(){
         if(p.state==='closed')act=`<button class="btn sm" data-act="reopen" data-p="${p.id}">Mở lại</button>`;
         else if(S.chot===p.id)act=`<button class="btn sm bad" data-act="chot-yes" data-p="${p.id}">Xác nhận chốt</button><button class="btn sm ghost" data-act="chot-no">Hủy</button>`;
         else{const early=!monthEnded(p.id);act=`${pend||early?`<span class="tipw" tabindex="0" data-tip="${esc(['Chỉ chốt được tháng khi:','• Đã hết tháng'+(early?' (chốt được từ ngày 01 tháng sau)':' ✓'),'• Không còn việc chờ duyệt'+(pend?` (còn ${pend} việc)`:' ✓')].join('\n'))}"><button class="btn sm pri" disabled>Chốt tháng</button></span>`:`<button class="btn sm pri" data-act="chot" data-p="${p.id}">Chốt tháng</button>`}${early?`<div class="sub">Chốt được từ ngày 01 tháng sau</div>`:pend?`<div class="sub">Duyệt hết ${pend} mục trước</div>`:''}`;}
-        return `<tr><td><b>${pLabel(p.id)}</b></td><td class="dt">${fmtD(lockDate(p.id))}${regLocked(p.id)?' · đã qua':''}</td><td>${p.state==='closed'?'<span class="chip c-lock">Đã chốt</span>':'<span class="chip c-duyet">Đang mở</span>'}</td>
+        return `<tr><td><b>${pLabel(p.id)}</b></td><td class="dt">${settings.lockDay?`${fmtD(lockDate(p.id))}${regLocked(p.id)?' · đã qua':''}`:'Không chốt'}</td><td>${p.state==='closed'?'<span class="chip c-lock">Đã chốt</span>':'<span class="chip c-duyet">Đang mở</span>'}</td>
           <td class="n">${pend?`<span class="chip c-cho">${pend}</span>`:'0'}</td><td class="n ${left&&p.state==='open'?'neg':''}">${left}</td><td><div class="acts">${act}</div></td></tr>
           ${S.chot===p.id?`<tr><td colspan="6" class="confirm">Chốt ${pLabel(p.id)}: <b>${left} KPI chưa hoàn thành</b> sẽ tính Không hoàn thành và bị trừ điểm. Sau khi chốt, cán bộ không sửa được kỳ này.</td></tr>`:''}`;}).join('')}
     </tbody></table></div></section>
@@ -1718,7 +1719,7 @@ function settingsView(){
         <div class="toolbar"><h3 class="h3" style="flex:1" >Cách tính điểm</h3></div>
         <div class="pad stack">
           <div class="row"><div class="field"><label for="st-base">Điểm chuẩn KPI</label><input type="number" id="st-base" min="1" step="1" value="${settings.base}"></div>
-          <div class="field"><label for="st-lock">Hạn chốt đăng ký (ngày trong tháng)</label><input type="number" id="st-lock" min="1" max="28" step="1" value="${settings.lockDay}"></div></div>
+          <div class="field"><label for="st-lock">Hạn chốt đăng ký (ngày trong tháng, 0 = không chốt)</label><input type="number" id="st-lock" min="0" max="28" step="1" value="${settings.lockDay}"></div></div>
           <div class="sformula">
             <div><span>Điểm TB</span><b>${settings.base} ÷ số KPI</b></div>
             <div><span>KPI không hoàn thành</span><b class="neg">− 2 × TB</b></div>
@@ -1726,7 +1727,7 @@ function settingsView(){
             <div><span>OKR hoàn thành</span><b>+ (1,5 – 5) × TB</b></div>
             <div><span>Vượt chỉ tiêu</span><b class="mut">chỉ ghi nhận</b></div>
           </div>
-          <p class="formula" style="margin:0">Điểm KPI thấp nhất là 0. OKR không hoàn thành không bị trừ. Sau ngày ${settings.lockDay}, cán bộ không tự thêm, xóa KPI tự đăng ký.</p>
+          <p class="formula" style="margin:0">Điểm KPI thấp nhất là 0. OKR không hoàn thành không bị trừ. ${settings.lockDay?`Sau ngày ${settings.lockDay}, cán bộ không tự thêm, xóa KPI tự đăng ký.`:'Hiện không chốt đăng ký: cán bộ tự thêm, xóa KPI tự đăng ký đến khi chốt tháng.'}</p>
           <div><button class="btn pri" type="submit">Lưu</button></div>
         </div>
       </form>
@@ -2022,7 +2023,7 @@ document.addEventListener('submit',e=>{
     if(S.editUser){const x=uObj(S.editUser);Object.assign(x,data);if(x.isAdmin&&x.evaluated&&!x.approvers.length)x.approvers=[x.id];toast('Đã lưu tài khoản.');S.editUser=null;}
     else{const id=$('#nu-id').value.trim().toLowerCase();if(uObj(id)){toast('Tên đăng nhập đã tồn tại.');render();return;}
       users.push({id,active:true,approvers:data.isAdmin?[id]:[],...data});S.addUser=false;S.userDraft=null;toast(`Đã tạo ${id}, mật khẩu ${DEFAULT_PW}.`);}}
-  if(f.id==='f-set'){settings.base=Math.max(1,Number($('#st-base').value)||40);settings.lockDay=Math.min(28,Math.max(1,Number($('#st-lock').value)||5));toast('Đã lưu cài đặt.');}
+  if(f.id==='f-set'){settings.base=Math.max(1,Number($('#st-base').value)||40);{const lk=Number($('#st-lock').value);settings.lockDay=$('#st-lock').value.trim()===''||isNaN(lk)?5:Math.min(28,Math.max(0,Math.round(lk)));}toast('Đã lưu cài đặt.');}
   if(f.id==='f-pw'){const o=$('#pw-old').value,n=$('#pw-new').value,n2=$('#pw-new2').value,err=$('#pw-err');
     if(n!==n2){err.textContent='Hai lần nhập mật khẩu mới không khớp.';return;}
     err.textContent='Đang đổi…';
