@@ -547,8 +547,14 @@ function newItem(owner,period,type,src,text,o={}){const it={id:newId('m'),owner,
 function applyAssign(a,pid,at){if(a.periods.includes(pid))return 0;a.periods.push(pid);let n=0;
   a.recipients.forEach(uid=>{if(uObj(uid)?.active){newItem(uid,pid,a.type,'giao',a.text,{assignId:a.id,created:at,chiTieu:a.chiTieu||''});n++;}});return n;}
 function makeAssign(type,text,pid,recipients,repeat,at,by,chiTieu=''){const a={id:newId('a'),type,text,repeat,periods:[],recipients:[...recipients],at,by,chiTieu};assigns.push(a);applyAssign(a,pid,at);return a;}
-function openPeriod(pid){if(periods.some(p=>p.id===pid))return -1;periods.push({id:pid,state:'open'});periods.sort((a,b)=>a.id<b.id?-1:1);
-  let n=0;assigns.filter(a=>a.repeat).forEach(a=>n+=applyAssign(a,pid,`${pid}-01 00:00`));return n;}
+function openPeriod(pid){if(periods.some(p=>p.id===pid))return -1;periods.push({id:pid,state:'open'});periods.sort((a,b)=>a.id<b.id?-1:1);return autoRepeat();}
+// Kỳ được mở sẵn nhiều tháng, nên việc "Lặp hằng tháng" chỉ tự giao cho tháng này và tháng sau (để cán bộ đăng ký trước).
+// Chỉ chạy ở máy QTV (cán bộ không nhận danh sách việc giao), ngay sau khi nạp dữ liệu mới.
+const addMonth=(pid,k)=>{const [y,m]=pid.split('-').map(Number),t=y*12+m-1+k;return `${Math.floor(t/12)}-${pad(t%12+1)}`;};
+function autoRepeat(){const cur=nowISO().slice(0,7),nx=addMonth(cur,1);let n=0;
+  assigns.filter(a=>a.repeat&&a.periods.length).forEach(a=>{const first=a.periods.slice().sort()[0];
+    periods.filter(p=>p.state==='open'&&p.id>first&&p.id>=cur&&p.id<=nx).forEach(p=>n+=applyAssign(a,p.id,`${p.id}-01 00:00`));});
+  return n;}
 
 // ================= ĐỒNG BỘ VỚI GOOGLE SHEET =================
 // Mỗi lần giao diện vẽ lại, so dữ liệu với lần lưu trước và chỉ gửi phần thay đổi lên máy chủ.
@@ -593,10 +599,11 @@ function applyData(d){
   Object.values(reports).forEach(r=>{if(!Array.isArray(r.nx))r.nx=['Không.','','Không.','','Không.','Không.','Không.'];});
   Object.values(plans).forEach(p=>{if(!Array.isArray(p.dk))p.dk=[...DK_DEFAULT];});
   periods.sort((a,b)=>a.id<b.id?-1:1);history.sort((a,b)=>a.at<b.at?1:-1);
-  takeSnap();API.lastLoad=Date.now();}
+  takeSnap();API.lastLoad=Date.now();
+  autoRepeat();} // việc lặp mới giao (nếu có) được lưu ở lần đồng bộ kế tiếp
 function clearSession(){API.token=null;API.queue=[];TK.clear();applyData({});}
 function enterApp(uid){const x=uObj(uid),cur=nowISO().slice(0,7);
-  const per=pObj(cur)?cur:(periods.at(-1)?.id||cur),last=periods.filter(p=>p.id<cur).at(-1)?.id||per;
+  const per=pObj(cur)?cur:(periods.filter(p=>p.id<=cur).at(-1)?.id||periods[0]?.id||cur),last=periods.filter(p=>p.id<cur).at(-1)?.id||per;
   Object.assign(S,{user:uid,loginErr:'',loginBusy:false,view:x.evaluated?'tongquan':'giao',period:per,thTo:'*',rep:{period:last,to:'*',who:'*'}});S.giao.period=per;
   toast(`Xin chào ${x.name}.`);render();}
 // Nạp lại dữ liệu mới nhất (người khác vừa duyệt, vừa giao việc…) khi không có thay đổi đang chờ lưu
@@ -698,7 +705,7 @@ function ratio(p){
 }
 
 function closeItem(){
-  if(S.itemOpen&&!S.editing&&$('#f-item')){const d={text:$('#it-text').value.trim(),chiTieu:($('#it-ct')?.value||'').trim(),spDuKien:($('#it-sp')?.value||'').trim(),yeuCau:($('#it-yc')?.value||'').trim()};
+  if(S.itemOpen&&!S.editing&&$('#f-item')){const d={period:$('#it-period')?.value||'',text:$('#it-text').value.trim(),chiTieu:($('#it-ct')?.value||'').trim(),spDuKien:($('#it-sp')?.value||'').trim(),yeuCau:($('#it-yc')?.value||'').trim()};
     if(d.text||d.chiTieu||d.spDuKien){S.itemD[S.itemOpen]=d;toast('Đã lưu bản nháp.');}else delete S.itemD[S.itemOpen];}
   S.itemOpen=null;S.editing=null;}
 function closeUser(){
@@ -946,6 +953,8 @@ function mine(v){
     ${v==='ps'&&!k.n?`<div class="notice">Chưa có KPI được giao hoặc tự đăng ký trong kỳ nên KPI phát sinh chưa có điểm.</div>`:''}
     ${S.itemOpen===v||ed?`<div class="ov" data-act="item-close-ov"><form class="modal md mxl panel pad stack" id="f-item" data-v="${v}" role="dialog" aria-modal="true" aria-labelledby="it-h">
       <div class="mhead"><h3 class="h3" id="it-h">${ed?`Sửa ${c.title}`:addTitle}${!ed&&S.itemWas?'<span class="chip c-cho" style="margin-left:6px">Mở lại bản nháp</span>':''}</h3><button class="btn ghost sm" type="button" data-act="item-close" aria-label="Đóng">✕</button></div>
+      ${ed?'':(()=>{const opts=periods.filter(x=>x.state==='open'&&!(v==='kpi'&&regLocked(x.id))),sel=fd?.period||(v==='ps'?p:'');
+        return `<div class="field"><label for="it-period">${v==='ps'?'Phát sinh trong tháng':'Đăng ký cho tháng'}</label><select id="it-period" required><option value="" ${sel?'':'selected'} disabled>— Chọn tháng, năm —</option>${opts.map(x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${pLabel(x.id)}${x.id===curP()?' (tháng này)':x.id===addMonth(curP(),1)?' (tháng sau)':''}</option>`).join('')}</select></div>`;})()}
       <div class="field sugwrap"><label for="it-text">Nội dung</label><input type="text" id="it-text" data-sug="${c.type}" autocomplete="off" required placeholder="Gõ nội dung, hoặc gõ vài chữ để chọn đầu việc mẫu" value="${fd?esc(fd.text||''):''}"><div class="sugbox" id="sug-it-text" hidden></div></div>
       <div class="field"><label for="it-ct">Chỉ tiêu / kết quả phải đạt</label><input type="text" id="it-ct" placeholder="Ví dụ: 05 hồ sơ, xong trước 25/10" value="${fd?esc(fd.chiTieu||''):''}"></div>
       ${v==='ps'?'':`<div class="field"><label for="it-sp">Sản phẩm đầu ra dự kiến</label><input type="text" id="it-sp" placeholder="Ví dụ: 05 biên bản" value="${fd?esc(fd.spDuKien||''):''}"></div>
@@ -1177,7 +1186,7 @@ function giaoView(){
 
 function giaoModal(){
   const g=S.giao,openP=periods.filter(p=>p.state==='open');
-  if(!openP.some(p=>p.id===g.period))g.period=openP.at(-1)?.id||'';
+  if(!openP.some(p=>p.id===g.period))g.period=(openP.find(p=>p.id>=curP())||openP.at(-1))?.id||'';
   return `<div class="ov" data-act="giao-close-ov"><div class="modal lg xl panel" role="dialog" aria-modal="true" aria-labelledby="g-h">
     <div class="mhead pad" style="border-bottom:1px solid var(--line)"><h3 class="h3" id="g-h">Giao ${g.type} mới ${S.giaoWasDraft?'<span class="chip c-cho" style="margin-left:6px">Mở lại bản nháp</span>':''}</h3><button class="btn ghost sm" type="button" data-act="giao-close" aria-label="Đóng, lưu nháp">✕</button></div>
     <div class="mbody">
@@ -1187,7 +1196,7 @@ function giaoModal(){
           <div class="field"><label for="g-ct">Chỉ tiêu / kết quả phải đạt</label><input type="text" id="g-ct" value="${esc(g.chiTieu)}" placeholder="Ví dụ: Nộp đúng hạn trước ngày 28"></div>
           <div class="field"><label for="g-period">Kỳ</label><select id="g-period">${openP.map(p=>`<option value="${p.id}" ${p.id===g.period?'selected':''}>${pLabel(p.id)}</option>`).join('')}</select></div>
         </div>
-        <label class="cbx"><input type="checkbox" id="g-repeat" ${g.repeat?'checked':''}> Lặp hằng tháng <span class="sub" style="display:inline">(tự giao lại khi mở kỳ mới)</span></label>
+        <label class="cbx"><input type="checkbox" id="g-repeat" ${g.repeat?'checked':''}> Lặp hằng tháng <span class="sub" style="display:inline">(tự giao lại cho các tháng sau, mỗi lần một tháng)</span></label>
       </div>
       <div class="toolbar" style="border-top:1px solid var(--line)"><h3 class="h3">Chọn người nhận</h3><div class="spacer"></div><button class="btn sm" data-act="pickall">Chọn tất cả</button><button class="btn sm ghost" data-act="picknone">Bỏ chọn tất cả</button></div>
       ${pickControls('giao')}
@@ -1513,7 +1522,7 @@ function kyView(){
     <form class="panel pad row" id="f-period">
       <div class="field" style="flex:0 1 220px"><label for="np">Mở kỳ mới</label><input type="month" id="np" required value="${nextMonth()}"></div>
       <button class="btn" type="submit">Mở kỳ</button>
-      <p class="formula" style="margin:0;flex:1 1 260px">Khi mở kỳ mới, các việc đang bật "Lặp hằng tháng" được tự giao lại cho người nhận.</p>
+      <p class="formula" style="margin:0;flex:1 1 260px">Các kỳ đã được mở sẵn đến hết tháng 12/2027 để cán bộ đăng ký trước cho tháng sau. Chốt tháng vẫn do Quản trị viên làm. Việc bật "Lặp hằng tháng" được tự giao lại cho tháng này và tháng sau.</p>
     </form>`;
 }
 const nextMonth=()=>{const [y,m]=periods.at(-1).id.split('-').map(Number);return m===12?`${y+1}-01`:`${y}-${pad(m+1)}`;};
@@ -1999,7 +2008,9 @@ document.addEventListener('submit',e=>{
     const ct=($('#it-ct')?.value||'').trim();
     const sp=($('#it-sp')?.value||'').trim(),yc=($('#it-yc')?.value||'').trim();
     if(S.editing){Object.assign(items.find(i=>i.id===S.editing),{text,chiTieu:ct,spDuKien:sp,yeuCau:yc});S.editing=null;toast('Đã lưu thay đổi.');}
-    else{newItem(S.user,S.period,c.type,c.add,text,{chiTieu:ct,spDuKien:sp,yeuCau:yc});delete S.itemD[v];S.itemOpen=null;S.itemWas=false;toast(`Đã thêm ${c.title}.`);}}
+    else{const pid=$('#it-period')?.value;if(!pid||!isOpen(pid)){toast('Chọn tháng, năm đăng ký.');render();return;}
+      newItem(S.user,pid,c.type,c.add,text,{chiTieu:ct,spDuKien:sp,yeuCau:yc});delete S.itemD[v];S.itemOpen=null;S.itemWas=false;
+      if(pid!==S.period){S.period=pid;S.sel.clear();}toast(`Đã thêm ${c.title} vào ${pLabel(pid)}.`);}}
   if(f.id==='f-reason'){const r=S.reasonFor,it=items.find(i=>i.id===r.id),reason=$('#rs-text').value.trim();if(!reason)return;
     it.cham=false;delete S.cham[it.id];
     if(r.a==='tralai'){it.status='chua';it.reason=reason;log(it,'Trả lại',reason);toast('Đã trả lại để cán bộ bổ sung.');}
@@ -2017,7 +2028,7 @@ document.addEventListener('submit',e=>{
     S.setModal=null;toast(old==null?`Đã thêm ${isTo?'nhóm':'chức vụ'} "${name}".`:`Đã lưu ${isTo?'nhóm':'chức vụ'} "${name}".`);render();return;}
   if(f.id==='f-print'){['tenDonVi','tinhTP','diaDanh','kyTruong','kyPho'].forEach(k=>settings[k]=$('#pr-'+k).value.trim());toast('Đã lưu thông tin in báo cáo.');}
   if(f.id==='f-lib'){library.push({id:newId('t'),type:$('#lb-type').value,group:$('#lb-group').value.trim(),text:$('#lb-text').value.trim()});toast('Đã thêm vào thư viện.');}
-  if(f.id==='f-period'){const v=$('#np').value,n=openPeriod(v);toast(n<0?`${pLabel(v)} đã có.`:`Đã mở ${pLabel(v)}. Tự giao lại ${n} việc lặp hằng tháng.`);}
+  if(f.id==='f-period'){const v=$('#np').value,n=openPeriod(v);toast(n<0?`${pLabel(v)} đã có.`:`Đã mở ${pLabel(v)}.${n?` Tự giao lại ${n} việc lặp hằng tháng.`:''}`);}
   if(f.id==='f-user'){const data={name:$('#nu-name').value.trim(),soHieu:shDigits($('#nu-sh').value),toCT:$('#nu-toct').value.trim(),to:$('#nu-to').value,cv:$('#nu-cv').value,capBac:$('#nu-cb').value,ngaySinh:$('#nu-ns').value,role:$('#nu-role').value,isAdmin:/^a/.test($('#nu-extra').value),evaluated:!['an','x'].includes($('#nu-extra').value)};
     if(S.editUser&&data.role!=='ql')users.forEach(u=>u.approvers=u.approvers.filter(a=>a!==S.editUser));
     if(S.editUser){const x=uObj(S.editUser);Object.assign(x,data);if(x.isAdmin&&x.evaluated&&!x.approvers.length)x.approvers=[x.id];toast('Đã lưu tài khoản.');S.editUser=null;}
