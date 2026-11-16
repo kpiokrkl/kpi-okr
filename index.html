@@ -484,6 +484,13 @@ td.nowrap{white-space:nowrap}
 .ni[aria-current=page] svg{color:var(--side-accent);opacity:1}
 .ni .badge{margin-left:auto;background:var(--side-accent);color:var(--side)}
 .ni:focus-visible{outline-color:var(--side-accent)}
+.sideSw{display:flex;gap:3px;padding:3px;margin:2px 0 4px;border-radius:10px;background:var(--side-hi);flex-shrink:0}
+.sideSw button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:transparent;color:var(--side-muted);font-weight:600;font-size:12.5px;padding:7px 4px;border-radius:8px;line-height:1.2;white-space:nowrap}
+.sideSw button:first-child{flex:0 0 auto;padding:7px 10px}
+.sideSw button[aria-pressed=true]{background:var(--side-accent);color:var(--side)}
+.sideSw button[aria-pressed=true] .badge{background:var(--side);color:var(--side-accent)}
+.sideSw .badge{background:var(--side-accent);color:var(--side)}
+.tqtr{cursor:pointer}.tqtr:hover td{background:var(--surface-2,rgba(0,0,0,.03))}
 .sfoot{margin-top:auto;padding-top:16px;border-top:1px solid var(--side-hi);display:flex;flex-direction:column;gap:10px}
 .me{display:flex;align-items:center;gap:10px;padding:0 6px}
 .av{width:34px;height:34px;border-radius:50%;background:var(--side-hi);color:var(--side-strong);display:grid;place-items:center;font-weight:600;font-size:13px;flex:none}
@@ -604,7 +611,7 @@ function applyData(d){
 function clearSession(){API.token=null;API.queue=[];TK.clear();applyData({});}
 function enterApp(uid){const x=uObj(uid),cur=nowISO().slice(0,7);
   const per=pObj(cur)?cur:(periods.filter(p=>p.id<=cur).at(-1)?.id||periods[0]?.id||cur),last=periods.filter(p=>p.id<cur).at(-1)?.id||per;
-  Object.assign(S,{user:uid,loginErr:'',loginBusy:false,view:x.evaluated?'tongquan':'giao',period:per,thTo:'*',rep:{period:last,to:'*',who:'*'}});S.giao.period=per;
+  Object.assign(S,{user:uid,loginErr:'',loginBusy:false,view:!x.evaluated?(isApprover(x)?'tqdv':'giao'):hasBoth(x)&&sideGet()==='org'?'tqdv':'tongquan',lastV:null,period:per,thTo:'*',rep:{period:last,to:'*',who:'*'}});S.giao.period=per;
   toast(`Xin chào ${x.name}.`);render();}
 // Nạp lại dữ liệu mới nhất (người khác vừa duyệt, vừa giao việc…) khi không có thay đổi đang chờ lưu
 function refreshData(force){if(!API.token||API.busy||API.queue.length||diffChanges().length)return;
@@ -765,6 +772,7 @@ function loginView(){
   </form></div>`;
 }
 const ICON={
+  tqdv:'<path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/><path d="M8 10h.01M12 10h.01M16 10h.01"/>',
   chuongtrinh:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M8 14h8M8 17h5"/>',
   bcthang:'<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 12h5M9.5 15h5M9.5 18h3"/>',
   theodoi:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9z"/><path d="M12 10v4M12 17.5v.01"/>',
@@ -784,23 +792,31 @@ const ICON={
   caidat:'<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'
 };
 const NAVL={bcdau:'Tổng hợp đầu tháng',bccuoi:'Tổng hợp cuối tháng'};
-const LABEL={chuongtrinh:'Chương trình tháng',bcthang:'Báo cáo tháng',theodoi:'Theo dõi nhập liệu',phanquyen:'Phân quyền duyệt',tongquan:'Tổng quan',kpi:'KPI',ps:'KPI phát sinh',okr:'OKR',duyet:'Chờ duyệt',tonghop:'Tổng hợp & xếp loại',bcdau:'Tổng hợp đăng ký đầu tháng',bccuoi:'Tổng hợp kết quả cuối tháng',
+const LABEL={chuongtrinh:'Chương trình tháng',bcthang:'Báo cáo tháng',theodoi:'Theo dõi nhập liệu',phanquyen:'Phân quyền duyệt',tongquan:'Tổng quan',tqdv:'Tổng quan đơn vị',kpi:'KPI',ps:'KPI phát sinh',okr:'OKR',duyet:'Chờ duyệt',tonghop:'Tổng hợp & xếp loại',bcdau:'Tổng hợp đăng ký đầu tháng',bccuoi:'Tổng hợp kết quả cuối tháng',
   giao:'Giao việc',thuvien:'Thư viện đầu việc',ky:'Kỳ & chốt tháng',taikhoan:'Tài khoản',caidat:'Cài đặt'};
-function navGroups(u){const g=[];
-  if(u.evaluated){g.push(['Tổng quan – Báo cáo',['tongquan','chuongtrinh','bcthang']]);g.push(['Nhập liệu',['kpi','ps','okr',...(u.isAdmin?['giao']:[])]]);}
-  else if(u.isAdmin)g.push(['Nhập liệu',['giao']]);
-  if(isApprover(u))g.push(['Duyệt & xếp loại',['duyet','theodoi','tonghop']]);
-  if(isApprover(u)||u.isAdmin)g.push(['Báo cáo',['bcdau','bccuoi']]);
-  if(u.isAdmin)g.push(['Quản trị',['phanquyen','thuvien','ky','taikhoan','caidat']]);
-  return g;}
+// Menu chia 2 nhóm lớn: "Của tôi" (việc của bản thân) và "Quản lý đơn vị" (duyệt, theo dõi, quản trị).
+// Người có cả 2 vai trò thấy thanh chuyển ở đầu menu; người chỉ có 1 vai trò thấy đúng nhóm của mình.
+const ME_VIEWS=['tongquan','chuongtrinh','bcthang','kpi','ps','okr'];
+const hasBoth=u=>!!u.evaluated&&isApprover(u);
+const sideOf=v=>ME_VIEWS.includes(v)?'me':'org';
+function meGroups(){return [['Tổng quan – Báo cáo',['tongquan','chuongtrinh','bcthang']],['Nhập liệu',['kpi','ps','okr']]];}
+function orgGroups(u){const g=[['Tổng quan',['tqdv']],['Theo dõi & duyệt',['theodoi','duyet',...(u.isAdmin?['giao']:[])]],['Xếp loại & báo cáo',['tonghop','bcdau','bccuoi']]];
+  if(u.isAdmin)g.push(['Thiết lập hệ thống',['ky','phanquyen','thuvien','taikhoan','caidat']]);return g;}
+function navGroups(u){if(!isApprover(u))return meGroups();if(!u.evaluated)return orgGroups(u);return sideOf(S.view)==='me'?meGroups():orgGroups(u);}
+function allGroups(u){return [...(u.evaluated?meGroups():[]),...(isApprover(u)?orgGroups(u):[])];}
+const sideGet=()=>{try{return localStorage.getItem('kpi_side')==='org'?'org':'me';}catch(_){return 'me';}};
+const sideSet=s=>{try{localStorage.setItem('kpi_side',s);}catch(_){}};
 function shell(){
   const u=me(),q=queue().length;
   const ret=v=>listOf(v,u.id).filter(i=>i.status==='chua'&&i.reason&&isOpen(i.period)).length;
   const tdMiss=pObj(curP())&&isOpen(curP())&&isApprover(u)?tdRows(curP()).filter(r=>r.st==='nokpi').length:0;
   const badge=v=>{const n=v==='duyet'?q:v==='theodoi'?tdMiss:VC[v]?ret(v):0;return n?`<span class="badge" title="${v==='duyet'?'Chờ duyệt':v==='theodoi'?'Chưa đăng ký KPI tháng này':'Bị trả lại'}">${n}</span>`:''};
-  const groups=navGroups(u).map(([gl,vs])=>`<div class="ng"><span class="gl">${gl}</span>${vs.map(v=>`<button class="ni" data-act="nav" data-v="${v}" ${S.view===v?'aria-current="page"':''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[v]}</svg><span>${NAVL[v]||LABEL[v]}</span>${badge(v)}</button>`).join('')}</div>`).join('');
-  const group=(navGroups(u).find(([,vs])=>vs.includes(S.view))||['',''])[0];
-  const usesPeriod=['chuongtrinh','bcthang','theodoi','tongquan','kpi','ps','okr','tonghop'].includes(S.view);
+  const side=sideOf(S.view);if(hasBoth(u)){S.lastV=S.lastV||{};S.lastV[side]=S.view;sideSet(side);}
+  const retAll=['kpi','ps','okr'].reduce((s,v)=>s+ret(v),0);
+  const sw=hasBoth(u)?`<div class="sideSw" role="group" aria-label="Chọn nhóm menu"><button data-act="side" data-s="me" aria-pressed="${side==='me'}" title="${retAll?`${retAll} việc bị trả lại`:'Việc của tôi'}">Của tôi${retAll?`<span class="badge">${retAll}</span>`:''}</button><button data-act="side" data-s="org" aria-pressed="${side==='org'}" title="${q?`${q} việc chờ duyệt`:'Quản lý đơn vị'}">Quản lý đơn vị${q?`<span class="badge">${q}</span>`:''}</button></div>`:'';
+  const groups=sw+navGroups(u).map(([gl,vs])=>`<div class="ng"><span class="gl">${gl}</span>${vs.map(v=>`<button class="ni" data-act="nav" data-v="${v}" ${S.view===v?'aria-current="page"':''}><svg viewBox="0 0 24 24" aria-hidden="true">${ICON[v]}</svg><span>${NAVL[v]||LABEL[v]}</span>${badge(v)}</button>`).join('')}</div>`).join('');
+  const group=(allGroups(u).find(([,vs])=>vs.includes(S.view))||['',''])[0];
+  const usesPeriod=['chuongtrinh','bcthang','theodoi','tongquan','tqdv','kpi','ps','okr','tonghop'].includes(S.view);
   const ini=u.name.split(/\s+/).filter(w=>w!=='Test').slice(-2).map(w=>w[0]).join('').toUpperCase();
   return `<div class="app ${S.menu?'open':''}">
     <aside class="side" aria-label="Menu chính">
@@ -823,7 +839,7 @@ function shell(){
 }
 function view(){
   if(VC[S.view])return mine(S.view);
-  return ({chuongtrinh:ctView,bcthang:bcView,theodoi:tdView,phanquyen:pqView,tongquan:overview,duyet:approvals,tonghop:summary,bcdau:reportDau,bccuoi:reportCuoi,giao:giaoView,thuvien:libView,ky:kyView,taikhoan:accounts,caidat:settingsView}[S.view]||(()=>''))();
+  return ({chuongtrinh:ctView,bcthang:bcView,theodoi:tdView,phanquyen:pqView,tongquan:overview,tqdv:orgView,duyet:approvals,tonghop:summary,bcdau:reportDau,bccuoi:reportCuoi,giao:giaoView,thuvien:libView,ky:kyView,taikhoan:accounts,caidat:settingsView}[S.view]||(()=>''))();
 }
 
 // ================= TỔNG QUAN CÁ NHÂN =================
@@ -896,6 +912,47 @@ function overview(){
         <ul class="todo">${recent.map(i=>{const v=itemPts(i);return `<li><div><div>${esc(i.text)}</div><div class="sub">${fmt(i.approvedAt)} · ${esc(uObj(i.approvedBy)?.name||i.approvedBy)}</div></div><div class="n">${statusCell(i)}${v?`<div class="${v<0?'neg':''}" style="font-weight:600">${signed(v)}</div>`:''}</div></li>`;}).join('')||'<li class="sub">Chưa có.</li>'}</ul></section>
     </div>
   </div>`;
+}
+
+// ================= TỔNG QUAN ĐƠN VỊ (QTV + người duyệt) =================
+function orgView(){
+  const u=me(),p=S.period,open=isOpen(p),all=tdRows(p),N=all.length,cur=curP();
+  const hasK=all.filter(r=>r.dk).length,hasO=all.filter(r=>r.okr).length,nok=N-hasK,q=queue().length;
+  const ids=new Set(all.map(r=>r.x.id));
+  const ret=items.filter(i=>ids.has(i.owner)&&i.period===p&&i.status==='chua'&&i.reason).length;
+  const lateP=u.isAdmin?periods.filter(x=>x.state==='open'&&x.id<cur):[];
+  const go=(v,extra='')=>`data-act="tqgo" data-v="${v}" ${extra}`;
+  const tile=(lbl,v,sub,attrs,cls='')=>`<button class="tile ${cls}" ${attrs}><span class="lbl">${lbl}</span><span class="v">${v}</span><span class="s">${sub}</span></button>`;
+  const todo=[];
+  if(q)todo.push([`Còn <b>${q}</b> việc chờ đồng chí duyệt`,'Mở Chờ duyệt',go('duyet')]);
+  if(open&&nok)todo.push([`<b>${nok}</b> người chưa đăng ký KPI ${pLabel(p)}`,'Lọc và nhắc',go('theodoi',`data-f="nokpi" data-to="*" data-p="${p}"`)]);
+  if(ret)todo.push([`<b>${ret}</b> việc bị trả lại, cán bộ chưa sửa xong`,'Xem theo dõi',go('theodoi',`data-f="all" data-to="*" data-p="${p}"`)]);
+  lateP.forEach(x=>todo.push([`${pLabel(x.id)} đã hết tháng nhưng chưa chốt`,'Mở Kỳ & chốt tháng',go('ky')]));
+  const teams=[...new Set(all.map(r=>r.x.to))].sort((a,b)=>a.localeCompare(b,'vi')).map(t=>{const rs=all.filter(r=>r.x.to===t);
+    return {t,n:rs.length,k:rs.filter(r=>r.dk).length,o:rs.filter(r=>r.okr).length,pend:rs.reduce((s,r)=>s+r.pend,0)};});
+  const lastP=periods.filter(x=>x.id<p).at(-1)?.id;
+  let rt='';
+  if(lastP){const cnt={HTXS:0,HTT:0,HTNV:0,KHT:0};all.forEach(r=>{const f=finalRating(r.x.id,lastP);if(cnt[f]!=null)cnt[f]++;});
+    rt=`<section class="panel"><div class="toolbar"><h3 class="h3">Xếp loại ${pLabel(lastP)}</h3><div class="spacer"></div><span class="sub" style="margin:0">${isOpen(lastP)?'Dự kiến, chưa chốt':'Đã chốt'}</span></div>
+      <ul class="todo">${Object.keys(cnt).map(k=>`<li><span class="chip c-${k}">${RT[k]}</span><b class="n">${cnt[k]}</b></li>`).join('')}</ul>
+      <div class="pad" style="border-top:1px solid var(--line)"><button class="btn sm" ${go('tonghop',`data-p="${lastP}"`)}>Mở Tổng hợp & xếp loại</button></div></section>`;}
+  return `<div class="head"><h2>Tổng quan đơn vị · ${pLabel(p)}</h2><p>${u.isAdmin?'Toàn đơn vị':'Những người đồng chí được phân công duyệt'} · ${N} cán bộ. ${open?'Kỳ đang mở.':'Kỳ đã chốt.'}</p></div>
+    <section class="tiles" aria-label="Số liệu đơn vị">
+      ${tile('Đã đăng ký KPI',`${hasK}/${N}`,nok?`${nok} người chưa đăng ký`:'Đã đủ',go('theodoi',`data-f="haskpi" data-to="*" data-p="${p}"`),nok?'':'tg')}
+      ${tile('Đã đăng ký OKR',`${hasO}/${N}`,'OKR không bắt buộc',go('theodoi',`data-f="hasokr" data-to="*" data-p="${p}"`))}
+      ${tile('Chờ duyệt',q,q?'Bấm để duyệt':'Không có việc chờ',go('duyet'),q?'warnt':'')}
+      ${tile('Bị trả lại',ret,ret?'Cán bộ cần sửa, gửi lại':'Không có',go('theodoi',`data-f="all" data-to="*" data-p="${p}"`),ret?'alert':'')}
+    </section>
+    <div class="grid2">
+      <section class="panel"><div class="toolbar"><h3 class="h3">Việc cần làm ngay</h3></div>
+        <ul class="todo">${todo.map(([t,b,a])=>`<li><div>${t}</div><button class="btn sm" ${a}>${b}</button></li>`).join('')||'<li class="sub">Không có việc cần xử lý.</li>'}</ul>
+        <div class="toolbar" style="border-top:1px solid var(--line)"><h3 class="h3">Tiến độ theo nhóm</h3><div class="spacer"></div><span class="sub" style="margin:0">Bấm một nhóm để xem chi tiết</span></div>
+        <div class="tw"><table class="tdt"><thead><tr><th>Nhóm</th><th class="n">Số người</th><th class="n">Đã ĐK KPI</th><th class="n">Đã có OKR</th><th class="n">Chờ duyệt</th></tr></thead><tbody>
+          ${teams.map(x=>`<tr class="tqtr" ${go('theodoi',`data-f="all" data-to="${esc(x.t)}" data-p="${p}"`)}><td>${esc(x.t)}</td><td class="n">${x.n}</td><td class="n ${x.k<x.n?'neg':''}"><b>${x.k}/${x.n}</b></td><td class="n">${x.o}/${x.n}</td><td class="n">${x.pend?`<span class="chip c-cho">${x.pend}</span>`:'—'}</td></tr>`).join('')||'<tr><td colspan="5" class="empty">Chưa có cán bộ.</td></tr>'}
+        </tbody></table></div>
+      </section>
+      <div class="stack" style="gap:20px">${rt||'<section class="panel pad sub">Chưa có tháng trước để xếp loại.</section>'}</div>
+    </div>`;
 }
 
 // ================= CỦA TÔI: KPI / KPI PHÁT SINH / OKR =================
@@ -1820,6 +1877,9 @@ document.addEventListener('click',e=>{
     case 'logout':{const tk=API.token;flushSync().finally(()=>call('logout',tk).catch(()=>{}));clearSession();}
       Object.assign(S,{user:null,itemOpen:null,itemD:{},addUser:false,dlSeen:{},giaoOpen:false,giaoMenu:false,editing:null,confirmDel:null,reasonFor:null,loginErr:'',menu:false,editUser:null,chot:null,revoke:null});S.sel.clear();S.qsel.clear();break;
     case 'nav':Object.assign(S,{setModal:null,setDel:null,view:b.dataset.v,giaoMenu:false,itemOpen:null,addUser:false,editUser:null,editing:null,confirmDel:null,reasonFor:null,menu:false,chot:null,revoke:null,tdCopy:''});if(b.dataset.v==='theodoi'&&pObj(curP()))S.period=curP();if(b.dataset.v==='tonghop'){const last=periods.filter(x=>x.id<curP()).at(-1);if(last)S.period=last.id;}window.scrollTo(0,0);if(Date.now()-API.lastLoad>60000)setTimeout(()=>refreshData(true),50);break;
+    case 'side':{const s=b.dataset.s;const v=(S.lastV&&S.lastV[s])||(s==='me'?'tongquan':'tqdv');Object.assign(S,{view:v,editing:null,confirmDel:null,menu:false,tdCopy:''});window.scrollTo(0,0);break;}
+    case 'tqgo':{const d=b.closest('[data-v]').dataset;Object.assign(S,{view:d.v,editing:null,confirmDel:null,menu:false});
+      if(d.p)S.period=d.p;if(d.f!=null){S.tdF=d.f;S.tdMsg='';}if(d.to!=null)S.tdTo=d.to;if(d.v==='theodoi')S.tdQ='';window.scrollTo(0,0);break;}
     case 'goto':Object.assign(S,{view:b.dataset.v,editing:null,confirmDel:null});S.filter[b.dataset.v]=b.dataset.f;window.scrollTo(0,0);break;
     case 'menu':S.menu=!S.menu;break;
     case 'menu-close':S.menu=false;break;
