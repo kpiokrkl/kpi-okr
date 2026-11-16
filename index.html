@@ -1220,10 +1220,7 @@ function tdView(){
   const p=S.period,open=isOpen(p),all=tdRows(p),N=all.length;
   const nok=all.filter(r=>r.st==='nokpi').length,noOkr=all.filter(r=>!r.okr).length,pend=all.reduce((s,r)=>s+r.pend,0);
   const today=nowISO().slice(0,10),ld=lockDate(p),days=Math.round((Date.parse(ld)-Date.parse(today))/864e5);
-  let rows=all;if(S.tdF!=='all')rows=rows.filter(r=>S.tdF==='nookr'?!r.okr:r.st===S.tdF);
-  if(S.tdTo!=='*')rows=rows.filter(r=>r.x.to===S.tdTo);
-  const q=norm(S.tdQ);if(q)rows=rows.filter(r=>norm(r.x.name+' '+r.x.id+' '+r.x.to).includes(q));
-  const order={nokpi:0,nookr:1,ok:2};rows=rows.slice().sort((a,b)=>order[a.st]-order[b.st]||a.x.name.localeCompare(b.x.name));
+  const rows=tdFilter(all);
   const nSel=rows.filter(r=>S.tdSel.has(r.x.id)).length,tos=[...new Set(all.map(r=>r.x.to))];
   const msg=S.tdMsg||(settings.lockDay?`Đề nghị đồng chí đăng ký KPI ${pLabel(p)} trước hạn chốt ${fmt(ld)}. OKR thêm được đến hết tháng.`:`Đề nghị đồng chí đăng ký KPI, OKR ${pLabel(p)}.`);
   const tile=(lbl,v,sub,f,cls='')=>`<button class="tile ${cls} ${S.tdF===f?'sel':''}" data-act="tdf" data-f="${f}"><span class="lbl">${lbl}</span><span class="v">${v}</span><span class="s">${sub}</span></button>`;
@@ -1264,8 +1261,15 @@ function tdView(){
       <p class="formula pad" style="margin:0;border-top:1px solid var(--line)">Gửi nhắc: cán bộ thấy lời nhắc ở trang Tổng quan khi đăng nhập. Sao chép danh sách: dán vào Zalo hoặc tin nhắn nhóm để giục.</p>
     </section>`;
 }
+// Lọc theo tình trạng, nhóm, ô tìm kiếm đang chọn (dùng chung cho bảng, sao chép, gửi nhắc)
+function tdFilter(all){let rows=all;if(S.tdF!=='all')rows=rows.filter(r=>S.tdF==='nookr'?!r.okr:r.st===S.tdF);
+  if(S.tdTo!=='*')rows=rows.filter(r=>r.x.to===S.tdTo);
+  const q=norm(S.tdQ);if(q)rows=rows.filter(r=>norm(r.x.name+' '+r.x.id+' '+r.x.to).includes(q));
+  const order={nokpi:0,nookr:1,ok:2};return rows.slice().sort((a,b)=>order[a.st]-order[b.st]||a.x.name.localeCompare(b.x.name));}
+// Chỉ lấy người vừa được chọn vừa đang hiện trong bộ lọc
+function tdPicked(p){return tdFilter(tdRows(p)).filter(r=>S.tdSel.has(r.x.id));}
 function tdCopyText(){const p=S.period,msg=($('#td-msg')?.value||'').trim();
-  const ppl=tdRows(p).filter(r=>S.tdSel.has(r.x.id));
+  const ppl=tdPicked(p);
   return `${msg}\nDanh sách (${ppl.length} đ/c):\n`+ppl.map((r,i)=>`${i+1}. ${r.x.name} (${r.x.to}) – ${TDST[r.st][0]}`).join('\n');}
 
 // ================= BÁO CÁO THÁNG CỦA TÔI + XUẤT WORD =================
@@ -1844,7 +1848,7 @@ document.addEventListener('click',e=>{
     case 'pqlf':S.pqLF=b.dataset.f;break;
     case 'tdf':S.tdF=b.dataset.f;break;
     case 'td-pickmiss':tdRows(S.period).filter(r=>r.st!=='ok').forEach(r=>S.tdSel.add(r.x.id));S.tdF='all';toast('Đã chọn những người chưa nhập đủ.');break;
-    case 'td-send':{S.tdMsg=($('#td-msg')?.value||'').trim();const ids=[...S.tdSel].filter(id=>scope().some(x=>x.id===id));
+    case 'td-send':{S.tdMsg=($('#td-msg')?.value||'').trim();const ids=tdPicked(S.period).map(r=>r.x.id).filter(id=>scope().some(x=>x.id===id));
       ids.forEach(id=>reminders.push({id:newId('r'),uid:id,period:S.period,by:S.user,at:nowISO(),text:S.tdMsg||`Đề nghị đồng chí nhập KPI, OKR ${pLabel(S.period)}.`,seen:false}));
       S.tdSel.clear();toast(`Đã gửi nhắc cho ${ids.length} người. Họ sẽ thấy ở trang Tổng quan.`);break;}
     case 'td-copy':{S.tdMsg=($('#td-msg')?.value||'').trim();const txt=tdCopyText();
