@@ -1222,7 +1222,7 @@ function tdView(){
   const today=nowISO().slice(0,10),ld=lockDate(p),days=Math.round((Date.parse(ld)-Date.parse(today))/864e5);
   const rows=tdFilter(all);
   const nSel=rows.filter(r=>S.tdSel.has(r.x.id)).length,tos=[...new Set(all.map(r=>r.x.to))];
-  const msg=S.tdMsg||(settings.lockDay?`Đề nghị đồng chí đăng ký KPI ${pLabel(p)} trước hạn chốt ${fmt(ld)}. OKR thêm được đến hết tháng.`:`Đề nghị đồng chí đăng ký KPI, OKR ${pLabel(p)}.`);
+  const msg=S.tdMsg||tdDefMsg(p);
   const tile=(lbl,v,sub,f,cls='')=>`<button class="tile ${cls} ${S.tdF===f?'sel':''}" data-act="tdf" data-f="${f}"><span class="lbl">${lbl}</span><span class="v">${v}</span><span class="s">${sub}</span></button>`;
   return `<div class="head"><h2>Theo dõi nhập liệu · ${pLabel(p)}</h2><p>${me().isAdmin?'Toàn đơn vị':'Những người bạn được phân công duyệt'}. Theo dõi ai đã đăng ký KPI, OKR và nhắc người chưa nhập.</p></div>
     ${open&&!settings.lockDay?`<div class="notice info">Không đặt hạn chốt đăng ký: cán bộ thêm, sửa, xóa KPI tự đăng ký được đến khi chốt tháng.</div>`:open?`<div class="notice ${days>=0?'info':''}">${days>0?`Hạn chốt đăng ký KPI: <b>${fmt(ld)}</b>, còn <b>${days} ngày</b>. Sau hạn này cán bộ không thêm được KPI tự đăng ký.`:days===0?`Hôm nay (<b>${fmt(ld)}</b>) là hạn chốt đăng ký KPI.`:`Đã qua hạn chốt đăng ký (${fmt(ld)}). Người chưa đăng ký chỉ còn KPI được giao.`}</div>`:`<div class="notice">${pLabel(p)} đã chốt.</div>`}
@@ -1268,9 +1268,22 @@ function tdFilter(all){let rows=all;if(S.tdF!=='all')rows=rows.filter(r=>S.tdF==
   const order={nokpi:0,nookr:1,ok:2};return rows.slice().sort((a,b)=>order[a.st]-order[b.st]||a.x.name.localeCompare(b.x.name));}
 // Chỉ lấy người vừa được chọn vừa đang hiện trong bộ lọc
 function tdPicked(p){return tdFilter(tdRows(p)).filter(r=>S.tdSel.has(r.x.id));}
+// Lời nhắc mặc định theo bộ lọc đang chọn
+function tdDefMsg(p){const ld=settings.lockDay?fmt(lockDate(p)):'';
+  if(S.tdF==='nokpi')return `Đề nghị đồng chí đăng ký KPI ${pLabel(p)}${ld?` trước hạn chốt ${ld}`:''}.`;
+  if(S.tdF==='nookr')return `Đề nghị đồng chí đăng ký OKR ${pLabel(p)}.`;
+  return `Đề nghị đồng chí đăng ký KPI, OKR ${pLabel(p)}${ld?` (KPI trước hạn chốt ${ld})`:''}.`;}
+// Lời nhắc người dùng tự gõ thì giữ, còn trùng câu mặc định thì không lưu (để đổi bộ lọc là đổi câu)
+function tdKeepMsg(){const v=($('#td-msg')?.value||'').trim();S.tdMsg=v===tdDefMsg(S.period)?'':v;}
+// Chia danh sách theo nhóm: tên nhóm ở đầu, tên người đánh số lại từ 1 trong mỗi nhóm
+function tdByTeam(ppl){const m=new Map();ppl.forEach(r=>{const t=r.x.to||'Chưa có nhóm';if(!m.has(t))m.set(t,[]);m.get(t).push(r);});
+  return [...m.keys()].sort((a,b)=>a.localeCompare(b,'vi')).map(t=>`${t}:\n`+m.get(t).sort((a,b)=>a.x.name.localeCompare(b.x.name,'vi')).map((r,i)=>`${i+1}. ${r.x.name}`).join('\n')).join('\n');}
 function tdCopyText(){const p=S.period,msg=($('#td-msg')?.value||'').trim();
-  const ppl=tdPicked(p);
-  return `${msg}\nDanh sách (${ppl.length} đ/c):\n`+ppl.map((r,i)=>`${i+1}. ${r.x.name} (${r.x.to}) – ${TDST[r.st][0]}`).join('\n');}
+  const ppl=tdPicked(p).filter(r=>!r.dk||!r.okr); // bỏ người đã nhập đủ
+  if(S.tdF==='nokpi'||S.tdF==='nookr')return `${msg}\nDanh sách (${ppl.length} đ/c):\n\n${tdByTeam(ppl)}`;
+  const parts=[['Chưa đăng ký cả KPI và OKR',ppl.filter(r=>!r.dk&&!r.okr)],['Chưa đăng ký KPI',ppl.filter(r=>!r.dk&&r.okr)],['Chưa có OKR',ppl.filter(r=>r.dk&&!r.okr)]].filter(x=>x[1].length);
+  const LA=['I','II','III'];
+  return `${msg}\nDanh sách (${ppl.length} đ/c):\n\n`+parts.map(([l,g],k)=>`${LA[k]}. ${l} (${g.length} đ/c)\n${tdByTeam(g)}`).join('\n\n');}
 
 // ================= BÁO CÁO THÁNG CỦA TÔI + XUẤT WORD =================
 const LEAD_CV=['Trưởng','Phó','Nhóm trưởng'];
@@ -1846,12 +1859,12 @@ document.addEventListener('click',e=>{
     case 'pq-unset-no':S.pqUnset=null;break;
     case 'pq-unset-yes':{const x=uObj(b.dataset.u);x.role='cb';users.forEach(u=>u.approvers=u.approvers.filter(a=>a!==x.id));S.pqUnset=null;toast(`Đã xóa toàn bộ quyền duyệt của ${x.name}. Kiểm tra lại những người chưa có người duyệt.`);break;}
     case 'pqlf':S.pqLF=b.dataset.f;break;
-    case 'tdf':S.tdF=b.dataset.f;break;
+    case 'tdf':if(S.tdF!==b.dataset.f)S.tdMsg='';else tdKeepMsg();S.tdF=b.dataset.f;break;
     case 'td-pickmiss':tdRows(S.period).filter(r=>r.st!=='ok').forEach(r=>S.tdSel.add(r.x.id));S.tdF='all';toast('Đã chọn những người chưa nhập đủ.');break;
-    case 'td-send':{S.tdMsg=($('#td-msg')?.value||'').trim();const ids=tdPicked(S.period).map(r=>r.x.id).filter(id=>scope().some(x=>x.id===id));
-      ids.forEach(id=>reminders.push({id:newId('r'),uid:id,period:S.period,by:S.user,at:nowISO(),text:S.tdMsg||`Đề nghị đồng chí nhập KPI, OKR ${pLabel(S.period)}.`,seen:false}));
+    case 'td-send':{const sendMsg=($('#td-msg')?.value||'').trim()||tdDefMsg(S.period);tdKeepMsg();const ids=tdPicked(S.period).map(r=>r.x.id).filter(id=>scope().some(x=>x.id===id));
+      ids.forEach(id=>reminders.push({id:newId('r'),uid:id,period:S.period,by:S.user,at:nowISO(),text:sendMsg,seen:false}));
       S.tdSel.clear();toast(`Đã gửi nhắc cho ${ids.length} người. Họ sẽ thấy ở trang Tổng quan.`);break;}
-    case 'td-copy':{S.tdMsg=($('#td-msg')?.value||'').trim();const txt=tdCopyText();
+    case 'td-copy':{const txt=tdCopyText();tdKeepMsg();
       try{navigator.clipboard.writeText(txt).then(()=>{S.tdCopy='';toast('Đã sao chép danh sách. Dán vào Zalo hoặc tin nhắn nhóm.');render();},()=>{S.tdCopy=txt;render();});}catch(_){S.tdCopy=txt;render();}return;}
     case 'rem-seen':reminders.filter(r=>r.uid===S.user).forEach(r=>r.seen=true);toast('Đã đánh dấu đã xem.');break;
     case 'preview':previewDoc(b.dataset.k,b.dataset.u||S.user,b.dataset.p||S.period);return;
@@ -1933,7 +1946,7 @@ document.addEventListener('change',e=>{
   if(t.id==='pq-lf'){S.pqLF=t.value;render();return;}
   if(a==='td-sel'){t.checked?S.tdSel.add(t.dataset.u):S.tdSel.delete(t.dataset.u);render();return;}
   if(a==='td-selall'){const rows=[...document.querySelectorAll('[data-act=td-sel]')].map(x=>x.dataset.u);rows.forEach(id=>t.checked?S.tdSel.add(id):S.tdSel.delete(id));render();return;}
-  if(t.id==='td-f'){S.tdF=t.value;render();return;}
+  if(t.id==='td-f'){S.tdMsg='';S.tdF=t.value;render();return;}
   if(t.id==='td-to'){S.tdTo=t.value;render();return;}
   if(t.id==='acc-to'){S.accTo=t.value;render();return;}
   if(t.id==='tk-file'){const f=t.files&&t.files[0];if(!f)return;
