@@ -1227,9 +1227,9 @@ function tdView(){
   return `<div class="head"><h2>Theo dõi nhập liệu · ${pLabel(p)}</h2><p>${me().isAdmin?'Toàn đơn vị':'Những người bạn được phân công duyệt'}. Theo dõi ai đã đăng ký KPI, OKR và nhắc người chưa nhập.</p></div>
     ${open&&!settings.lockDay?`<div class="notice info">Không đặt hạn chốt đăng ký: cán bộ thêm, sửa, xóa KPI tự đăng ký được đến khi chốt tháng.</div>`:open?`<div class="notice ${days>=0?'info':''}">${days>0?`Hạn chốt đăng ký KPI: <b>${fmt(ld)}</b>, còn <b>${days} ngày</b>. Sau hạn này cán bộ không thêm được KPI tự đăng ký.`:days===0?`Hôm nay (<b>${fmt(ld)}</b>) là hạn chốt đăng ký KPI.`:`Đã qua hạn chốt đăng ký (${fmt(ld)}). Người chưa đăng ký chỉ còn KPI được giao.`}</div>`:`<div class="notice">${pLabel(p)} đã chốt.</div>`}
     <section class="tiles" aria-label="Thống kê nhập liệu">
-      ${tile('Đã đăng ký KPI',`${N-nok}/${N}`,`${N?Math.round((N-nok)/N*100):0}% cán bộ`,'all')}
+      ${tile('Đã đăng ký KPI',`${N-nok}/${N}`,`${N?Math.round((N-nok)/N*100):0}% cán bộ`,'haskpi')}
       ${tile('Chưa đăng ký KPI',nok,nok?'Bấm để lọc và nhắc':'Đã đủ','nokpi',nok?'alert':'')}
-      ${tile('Chưa có OKR',noOkr,'Cần OKR để xét Xuất sắc','nookr',noOkr?'warnt':'')}
+      ${tile('Đã đăng ký OKR',`${N-noOkr}/${N}`,`${N?Math.round((N-noOkr)/N*100):0}% cán bộ · OKR không bắt buộc`,'hasokr')}
       ${tile('Đã nhập đủ',all.filter(r=>r.st==='ok').length,'Có KPI tự đăng ký và OKR','ok','tg')}
     </section>
     ${pend?`<p class="formula" style="margin-top:-8px">Đang có ${pend} mục chờ duyệt trong tháng này. <button class="linkbtn" data-act="nav" data-v="duyet">Mở Chờ duyệt</button></p>`:''}
@@ -1237,7 +1237,7 @@ function tdView(){
       <div class="toolbar">
         <input type="search" class="search" id="td-q" placeholder="Tìm cán bộ…" value="${esc(S.tdQ)}" aria-label="Tìm cán bộ">
         ${tos.length>1?`<select id="td-to" aria-label="Lọc nhóm"><option value="*">Tất cả nhóm</option>${tos.map(t=>`<option ${S.tdTo===t?'selected':''}>${esc(t)}</option>`).join('')}</select>`:''}
-        <select id="td-f" aria-label="Lọc tình trạng">${[['all','Tất cả'],['nokpi','Chưa đăng ký KPI'],['nookr','Chưa có OKR'],['ok','Đã nhập đủ']].map(([k,l])=>`<option value="${k}" ${S.tdF===k?'selected':''}>${l}</option>`).join('')}</select>
+        <select id="td-f" aria-label="Lọc tình trạng">${[['all','Tất cả'],['haskpi','Đã đăng ký KPI'],['nokpi','Chưa đăng ký KPI'],['hasokr','Đã đăng ký OKR'],['nookr','Chưa có OKR'],['ok','Đã nhập đủ']].map(([k,l])=>`<option value="${k}" ${S.tdF===k?'selected':''}>${l}</option>`).join('')}</select>
         <div class="spacer"></div>
         <button class="btn sm" data-act="td-pickmiss">Chọn người chưa nhập</button>
       </div>
@@ -1262,7 +1262,8 @@ function tdView(){
     </section>`;
 }
 // Lọc theo tình trạng, nhóm, ô tìm kiếm đang chọn (dùng chung cho bảng, sao chép, gửi nhắc)
-function tdFilter(all){let rows=all;if(S.tdF!=='all')rows=rows.filter(r=>S.tdF==='nookr'?!r.okr:r.st===S.tdF);
+function tdFilter(all){let rows=all;const F={nookr:r=>!r.okr,hasokr:r=>r.okr>0,haskpi:r=>r.dk>0};
+  if(S.tdF!=='all')rows=rows.filter(F[S.tdF]||(r=>r.st===S.tdF));
   if(S.tdTo!=='*')rows=rows.filter(r=>r.x.to===S.tdTo);
   const q=norm(S.tdQ);if(q)rows=rows.filter(r=>norm(r.x.name+' '+r.x.id+' '+r.x.to).includes(q));
   const order={nokpi:0,nookr:1,ok:2};return rows.slice().sort((a,b)=>order[a.st]-order[b.st]||a.x.name.localeCompare(b.x.name));}
