@@ -1828,7 +1828,7 @@ document.addEventListener('click',e=>{
     case 'edit':S.editing=id;S.confirmDel=null;S.itemOpen=null;render();setTimeout(()=>$('#it-text')?.focus());return;
     case 'item-new':S.itemOpen=b.dataset.v;S.itemWas=!!S.itemD[b.dataset.v];S.editing=null;render();setTimeout(()=>$('#it-text')?.focus());return;
     case 'item-close':closeItem();break;
-    case 'item-close-ov':if(e.target!==b)return;closeItem();break;
+    case 'item-close-ov':return; // Form nhập liệu: bấm ra ngoài KHÔNG đóng, chỉ đóng bằng nút Đóng / dấu ×
     case 'item-discard':delete S.itemD[S.itemOpen];S.itemWas=false;toast('Đã xóa bản nháp.');break;
     case 'del':S.confirmDel=id;break;
     case 'del-no':S.confirmDel=null;break;
@@ -1852,7 +1852,7 @@ document.addEventListener('click',e=>{
     case 'giao-menu':S.giaoMenu=!S.giaoMenu;break;
     case 'giao-new':{const d=giaoDraft(b.dataset.v);S.giaoWasDraft=!!giaoHas(d);S.giao=d;S.pick=d.pick;S.giaoOpen=true;S.giaoMenu=false;render();setTimeout(()=>$('#g-text')?.focus());return;}
     case 'giao-close':S.giaoOpen=false;if(giaoHas(S.giao))toast('Đã lưu bản nháp. Bấm "Mở tiếp" để giao tiếp.');break;
-    case 'giao-close-ov':if(e.target!==b)return;S.giaoOpen=false;if(giaoHas(S.giao))toast('Đã lưu bản nháp. Bấm "Mở tiếp" để giao tiếp.');break;
+    case 'giao-close-ov':return;
     case 'giao-discard':delete S.giaoD[b.dataset.v];toast('Đã xóa bản nháp.');break;
     case 'pqsel':S.pqMgr=b.dataset.u;S.pqUnset=null;render();setTimeout(()=>$('#pq-edit')?.scrollIntoView({behavior:'smooth'}));return;
     case 'pq-unset':S.pqUnset=b.dataset.u;break;
@@ -1903,11 +1903,11 @@ document.addEventListener('click',e=>{
     case 'tk-mau':if(!window.PizZip){toast('Chưa tải được thư viện tạo file. Kiểm tra mạng rồi thử lại.');break;}saveFile('MAU_NHAP_TAI_KHOAN.xlsx',tkMauBlob());return;
     case 'tk-nhap':{const el=$('#tk-file');if(el){el.value='';el.click();}return;}
     case 'imp-close':S.imp=null;break;
-    case 'imp-close-ov':if(e.target!==b)return;S.imp=null;break;
+    case 'imp-close-ov':return;
     case 'imp-ok':tkImpApply();break;
     case 'edit-user':S.editUser=b.dataset.u;S.addUser=false;break;
     case 'edit-user-cancel':closeUser();break;
-    case 'user-close-ov':if(e.target!==b)return;closeUser();break;
+    case 'user-close-ov':return;
     case 'user-discard':S.userDraft=null;toast('Đã xóa bản nháp.');break;
     case 'reset':{const id=b.dataset.u;call('resetPassword',API.token,id).then(r=>{toast(r.ok?`Đã đặt lại mật khẩu ${id} về ${DEFAULT_PW}.`:r.err);render();}).catch(e=>{if(!sessionLost(e)){toast('Không đặt lại được: '+(e.message||e));render();}});return;}
     case 'toggle-user':{const x=uObj(b.dataset.u);x.active=!x.active;toast(x.active?`Đã mở khóa ${x.id}.`:`Đã khóa ${x.id}.`);break;}
@@ -1918,7 +1918,7 @@ document.addEventListener('click',e=>{
     case 'set-edit':S.setModal={kind:b.dataset.k,i:Number(b.dataset.i)};S.setDel=null;render();setTimeout(()=>$('#sm-name')?.focus());return;
     case 'set-jump':document.getElementById(b.dataset.to)?.scrollIntoView({behavior:'smooth',block:'start'});return;
     case 'set-close':S.setModal=null;break;
-    case 'set-close-ov':if(e.target!==b)return;S.setModal=null;break;
+    case 'set-close-ov':return;
     case 'set-del':S.setDel={kind:b.dataset.k,i:Number(b.dataset.i)};break;
     case 'set-del-no':S.setDel=null;break;
     case 'set-del-yes':{const d=S.setDel;if(!d)break;const key=d.kind==='to'?'tos':'cvs',v=settings[key][d.i];
